@@ -27,6 +27,7 @@ import java.io.OutputStream;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.List;
+import androidx.core.content.ContextCompat;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
@@ -40,7 +41,8 @@ import io.flutter.plugin.common.PluginRegistry;
 /**
  * ImageSavePlugin
  */
-public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
+public class ImageSavePlugin
+        implements MethodCallHandler, FlutterPlugin, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
     private Context applicationContext;
     private static final int REQ_CODE = 100;
     private MethodCall call;
@@ -51,7 +53,8 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
     @Override
     public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
         this.applicationContext = flutterPluginBinding.getApplicationContext();
-        channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "image_save");
+        channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(),
+                "image_save");
         channel.setMethodCallHandler(this);
     }
 
@@ -66,10 +69,14 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
         this.call = call;
         this.result = result;
-        if (ActivityCompat.checkSelfPermission(applicationContext, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(applicationContext,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
             methodCall(call, result);
         } else {
-            ActivityCompat.requestPermissions(activityPluginBinding.getActivity(), new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_CODE);
+            ActivityCompat.requestPermissions(activityPluginBinding.getActivity(),
+                    new String[] { Manifest.permission.READ_EXTERNAL_STORAGE,
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE },
+                    0x1045);
             activityPluginBinding.addRequestPermissionsResultListener(this);
         }
     }
@@ -106,7 +113,8 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
                 result.error("2", "Duplicate image name", "The file '" + imageName + "' already exists");
             }
             contentValues.put(MediaStore.Images.Media.DISPLAY_NAME, imageName);
-            contentValues.put(MediaStore.Images.Media.MIME_TYPE, URLConnection.getFileNameMap().getContentTypeFor(imageName));
+            contentValues.put(MediaStore.Images.Media.MIME_TYPE,
+                    URLConnection.getFileNameMap().getContentTypeFor(imageName));
             contentValues.put(MediaStore.Images.Media.RELATIVE_PATH, DIRECTORY_PICTURES + "/" + albumName);
             Uri uri = resolver.insert(contentUri, contentValues);
             if (uri == null) {
@@ -122,7 +130,8 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
             } catch (IOException e) {
                 result.error("2", e.getMessage(), "The file '" + imageName + "' saves failed");
             }
-            MediaScannerConnection.scanFile(applicationContext, new String[]{contentUri.getPath()}, new String[]{"images/*"}, null);
+            MediaScannerConnection.scanFile(applicationContext, new String[] { contentUri.getPath() },
+                    new String[] { "images/*" }, null);
         } else {
             try {
                 result.success(saveImage(data, imageName, albumName, overwrite));
@@ -132,7 +141,8 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
         }
     }
 
-    private Boolean saveImage(byte[] data, String imageName, String albumName, Boolean overwriteSameNameFile) throws IOException {
+    private Boolean saveImage(byte[] data, String imageName, String albumName, Boolean overwriteSameNameFile)
+            throws IOException {
         if (albumName == null) {
             albumName = getApplicationName();
         }
@@ -150,14 +160,14 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
             FileOutputStream fos = new FileOutputStream(file);
             fos.write(data);
             fos.close();
-            applicationContext.sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(file.getAbsoluteFile())));
+            applicationContext.sendBroadcast(
+                    new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(file.getAbsoluteFile())));
             return true;
         } catch (IOException e) {
             e.printStackTrace();
         }
         return false;
     }
-
 
     private void saveImageToSandboxCall(byte[] data, String imageName) {
         saveImageToSandbox(data, imageName);
@@ -181,7 +191,8 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
             fos.write(data);
             fos.flush();
             fos.close();
-            applicationContext.sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(file.getAbsoluteFile())));
+            applicationContext.sendBroadcast(
+                    new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(file.getAbsoluteFile())));
             result.success(true);
         } catch (IOException e) {
             result.error("1", e.getMessage(), e.getCause());
@@ -235,7 +246,6 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
         return buffer;
     }
 
-
     @Override
     public void onAttachedToActivity(@NonNull ActivityPluginBinding activityPluginBinding) {
         this.activityPluginBinding = activityPluginBinding;
@@ -262,7 +272,14 @@ public class ImageSavePlugin implements MethodCallHandler, FlutterPlugin, Activi
         if (granted) {
             methodCall(call, result);
         } else {
-            result.error("0", "Permission denied", null);
+            Boolean showRationale = ActivityCompat.shouldShowRequestPermissionRationale(
+                    activityPluginBinding.getActivity(),
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            if (showRationale) {
+                result.error("0", "Permission denied", null);
+            } else {
+                methodCall(call, result);
+            }
         }
         return granted;
     }
